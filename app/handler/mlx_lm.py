@@ -244,15 +244,21 @@ class MLXLMHandler:
                     if reasoning_parser:
                         parsed_content, is_complete = reasoning_parser.extract_reasoning_streaming(text)
                         if parsed_content:
-                            after_reasoning_close_content = parsed_content.get("after_reasoning_close_content")
-                            yield parsed_content
+                            if "reasoning_content" in parsed_content:
+                                after_reasoning_close_content = parsed_content.get("after_reasoning_close_content")
+                                yield parsed_content
+                                if is_complete:
+                                    reasoning_parser = None
+                                if after_reasoning_close_content:
+                                    text = after_reasoning_close_content
+                                    after_reasoning_close_content = None
+                                else:
+                                    continue
+                            else:
+                                text = parsed_content.get("content", "")
                         if is_complete:
                             reasoning_parser = None
-                        if after_reasoning_close_content:
-                            text = after_reasoning_close_content
-                            after_reasoning_close_content = None
-                        else:
-                            continue
+
                     if tool_parser:
                         parsed_content, is_complete = tool_parser.extract_tool_calls_streaming(text)
                         if parsed_content:
@@ -264,7 +270,7 @@ class MLXLMHandler:
                                 for tool_call in tool_calls:
                                     yield tool_call
                         continue
-                    
+                        
                     yield text
 
             total_tokens = final_chunk.prompt_tokens + final_chunk.generation_tokens
@@ -408,8 +414,11 @@ class MLXLMHandler:
                 if reasoning_parser:
                     parsed_content = reasoning_parser.extract_reasoning(response_text)
                     parsed_response["reasoning_content"] = parsed_content.get("reasoning_content")
-                    parsed_response["content"] = parsed_content.get("content")
-                    response_text = parsed_content.get("after_reasoning_close_content")
+                    if parsed_response["reasoning_content"] is not None:
+                        parsed_response["content"] = parsed_content.get("content")
+                        response_text = parsed_content.get("after_reasoning_close_content")
+                    else:
+                        response_text = parsed_content.get("content")
 
                 if response_text:
                     if tool_parser:
